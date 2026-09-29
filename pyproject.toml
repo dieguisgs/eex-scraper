@@ -1,0 +1,44 @@
+# Proyecto para ejecutar, no para instalar: `python run.py`.
+# Este fichero solo declara Python y dependencias para que `uv sync` monte el
+# entorno (.venv); no hay build ni paquete.
+
+[project]
+name = "eex-scraper"
+version = "0.1.0"
+description = "Scraper del EEX Market Data Hub (power, gas, environmentals y el resto de commodities)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+browser = [
+    "playwright>=1.44",
+]
+
+[tool.uv]
+# No instalar el proyecto en el entorno: solo sus dependencias. El codigo se
+# usa directamente desde src/ (run.py lo anade al path).
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+# date.today() y datetime.now() locales son deliberados: la fecha de
+# negociacion de EEX es una fecha de calendario, no un instante UTC.
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

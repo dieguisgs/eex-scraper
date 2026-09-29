@@ -1,0 +1,118 @@
+# ============================================================================
+#  eex-scraper - configuracion
+# ----------------------------------------------------------------------------
+#  Todo lo que hay aqui tiene un valor por defecto en el codigo; este fichero
+#  solo sobreescribe lo que declares.
+#
+#  Que config se usa (el primero que exista):
+#    1. python run.py --config ruta/config.toml ...
+#    2. la variable de entorno EEX_SCRAPER_CONFIG
+#    3. un config.toml en la carpeta actual o en alguna superior
+# ============================================================================
+
+
+[output]
+# ---------------------------------------------------------------------------
+#  RUTA BASE: aqui se escribe todo lo que genera el scraper.
+#  - Absoluta:  "D:/datos/eex"  o con comillas simples: 'D:\datos\eex'
+#  - Relativa:  "output"         (relativa a ESTE fichero, no a donde ejecutes)
+#  - Admite ~ y variables de entorno: "~/eex", "%USERPROFILE%/eex", "$HOME/eex"
+#  Para una ejecucion puntual se puede pisar con:  python run.py -o otra/ruta
+#
+#  Dentro de la ruta base:
+#    table_data/<COMMODITY>/<AREA>/<Futures|Spot|Indices|Auctions>/<producto>/[<vencimiento>/]<contrato>.csv
+#        un CSV por contrato, una fila por tradeDate (fuente de verdad)
+#    curves/<COMMODITY>/<AREA>/<producto>.csv y <producto>_wide.csv
+#        curvas forward por fecha de referencia (se regeneran en cada ejecucion)
+#    inventory.csv          un fichero de datos por fila: fechas, filas, ultimo precio
+#    catalog/contracts.csv  catalogo de contratos del hub
+#    _state/                que se scrapeo y cuando (+ bloqueo entre ejecuciones)
+#    _logs/                 logs (si no se cambia [logging].directory)
+# ---------------------------------------------------------------------------
+directory       = "output"
+
+table_dirname   = "table_data"
+catalog_dirname = "catalog"
+state_dirname   = "_state"
+delimiter       = ","
+# utf-8-sig abre bien en Excel con acentos; usa "utf-8" si prefieres limpio.
+encoding        = "utf-8-sig"
+
+
+[logging]
+# ---------------------------------------------------------------------------
+#  RUTA DEL LOG. Cada comando que hace algo (run, full, catalog, curves,
+#  migrate) deja aqui lo que ha hecho: inicio, progreso, resumen, avisos y,
+#  si algo falla, el error completo.
+#  - "{output}" es la ruta base de [output]: "{output}/_logs" deja los logs
+#    junto a los datos (y los sigue si cambias la ruta o usas -o).
+#  - Tambien vale una ruta propia, absoluta o relativa a este fichero:
+#    "D:/logs/eex", "logs", "%USERPROFILE%/eex_logs"
+# ---------------------------------------------------------------------------
+directory = "{output}/_logs"
+filename  = "eex-scraper_{date}.log"   # un fichero por dia; {date} = AAAA-MM-DD
+level     = "INFO"                     # DEBUG (cada peticion), INFO, WARNING, ERROR
+keep_days = 60                         # los logs mas antiguos se borran solos; 0 = nunca
+
+
+[api]
+# Endpoints reales que usa el widget del Market Data Hub de eex.com.
+market_data_url = "https://api.eex-group.com/pub/market-data"
+customise_url   = "https://api.eex-group.com/pub/customise-widget"
+referer         = "https://www.eex.com/"
+user_agent      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+timeout_seconds = 45.0
+max_retries     = 4          # reintentos ante 429/5xx/errores de red
+backoff_seconds = 1.5        # espera base; crece exponencialmente
+
+
+[scrape]
+# La API del hub corta con HTTP 429 alrededor de 60 peticiones/minuto (medido
+# empiricamente). El freno real es el ritmo, no la concurrencia: por encima de
+# ~1 peticion/segundo empiezan los rechazos. Ante un 429 el scraper para a
+# todos los workers unos segundos y reintenta, asi que subir esto no rompe
+# nada, solo hace la ejecucion mas lenta y ruidosa.
+requests_per_second    = 0.9
+burst                  = 20    # margen inicial antes de aplicar el ritmo
+concurrency            = 4     # peticiones simultaneas
+request_delay_seconds  = 0.0   # pausa extra entre peticiones, por educacion
+# Ventana que se pide en cada ejecucion a cada contrato. La API publica recorta
+# sola: ~31 sesiones para futuros y ~1 ano para indices (comprobado: pedir
+# desde 2015 devuelve lo mismo). Pedir de mas no penaliza y cubre huecos y
+# revisiones de EEX, asi que siempre se pide la ventana entera.
+max_lookback_days      = 420
+# `run` se salta los contratos scrapeados con exito hace menos de X horas
+# (permite relanzar una ejecucion cortada y que continue). `full` no salta nada.
+min_refresh_hours      = 4.0
+# No crear CSV para contratos sin ningun dato (vencimientos que aun no cotizan).
+skip_empty             = true
+
+
+[filters]
+# Listas vacias = "todo". Los valores salen del catalogo (comando `catalog`).
+# commodities disponibles: POWER, NATGAS, ENVIRONMENTALS, FREIGHT,
+#                          AGRICULTURALS, GO, HYDROGEN
+commodities    = []
+areas          = []          # p.ej. ["DE", "ES", "TTF"]
+products       = []          # p.ej. ["Base", "Peak"]
+maturity_types = []          # Day, Week, Weekend, Month, Quarter, Season, Year
+short_codes    = []          # p.ej. ["DEBY", "FEU2"]
+
+# pricing: F=Futures, S=Spot, I=Indices, A=Auction, O=Options.
+# Las opciones (O) viven en otra tabla del hub (`table-data-option`) y el
+# endpoint principal las rechaza con HTTP 400, por eso quedan fuera.
+pricings = ["F", "S", "I", "A"]
+
+# Commodities/areas que nunca se scrapean, aunque esten en `filters`.
+exclude_commodities = []
+exclude_areas       = []
+
+
+[browser]
+# Respaldo con Playwright: si la API responde 403/Cloudflare, se abre el hub
+# real en un navegador y se piden los mismos JSON desde dentro de la pagina.
+# Requiere: uv sync --extra browser && uv run playwright install chromium
+fallback_enabled = true
+headless         = true
+browser          = "chromium"
+page_url         = "https://www.eex.com/en/market-data/market-data-hub"

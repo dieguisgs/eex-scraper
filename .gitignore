@@ -1,0 +1,15 @@
+# Entorno y cachés
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Datos descargados: son de EEX (uso propio, no redistribuir) y crecen cada día.
+# Si cambias [output].directory o [logging].directory a otra carpeta dentro del
+# proyecto, añádela aquí también.
+output/
+backup/
+
+# Restos de pruebas
+hub_screenshot.png
